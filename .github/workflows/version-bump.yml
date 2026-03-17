@@ -31,12 +31,15 @@ jobs:
                     BRANCH_NAME="${{ github.head_ref }}"
                     echo "Source Branch: $BRANCH_NAME"
 
-                    if [[ $BRANCH_NAME == task/* || $BRANCH_NAME == feature/* ]]; then
+                    if [[ $BRANCH_NAME == task/* ]]; then
                       BUMP_TYPE="major"
-                      echo "Detected task/feature branch. Bump: Major (3rd digit)."
-                    elif [[ $BRANCH_NAME == bug/* || $BRANCH_NAME == hotfix/* ]]; then
+                      echo "Detected task branch. Bump: Major."
+                    elif [[ $BRANCH_NAME == feature/* ]]; then
                       BUMP_TYPE="minor"
-                      echo "Detected bug/hotfix branch. Bump: Minor (4th digit)."
+                      echo "Detected feature branch. Bump: Minor."
+                    elif [[ $BRANCH_NAME == bug/* || $BRANCH_NAME == hotfix/* ]]; then
+                      BUMP_TYPE="patch"
+                      echo "Detected bug/hotfix branch. Bump: Patch."
                     fi
 
                   elif [ "${{ github.event_name }}" == "push" ]; then
@@ -73,34 +76,35 @@ jobs:
                   CURRENT="${{ steps.current_version.outputs.current }}"
                   BUMP_TYPE="${{ steps.bump_type.outputs.bump_type }}"
 
-                  if [[ $CURRENT =~ ^([0-9]{2})\.([0-9]{2})\.([0-9]+)\.([0-9]+)([a-zA-Z]*)$ ]]; then
+                  if [[ $CURRENT =~ ^([0-9]{2})\.([0-9]+)\.([0-9]+)\.([0-9]+)([a-zA-Z]*)$ ]]; then
                     YY="${BASH_REMATCH[1]}"
-                    MM="${BASH_REMATCH[2]}"
-                    MAJOR="${BASH_REMATCH[3]}"
-                    MINOR="${BASH_REMATCH[4]}"
+                    MAJOR="${BASH_REMATCH[2]}"
+                    MINOR="${BASH_REMATCH[3]}"
+                    PATCH="${BASH_REMATCH[4]}"
                     SUFFIX="${BASH_REMATCH[5]}"
                   else
                     echo "Error: Invalid version format: $CURRENT"
-                    echo "Expected: YY.MM.Major.Minor[Suffix] (e.g. 26.03.1.0)"
+                    echo "Expected: YY.Major.Minor.Patch[hotfix] (e.g. 26.1.0.0)"
                     exit 1
                   fi
 
                   CURRENT_YY=$(date +%y)
-                  CURRENT_MM=$(date +%m)
 
                   if [ "$YY" != "$CURRENT_YY" ]; then
-                    echo "New Year detected. Resetting version."
-                    NEW_VERSION="$CURRENT_YY.$CURRENT_MM.0.0"
-                  elif [ "$MM" != "$CURRENT_MM" ]; then
-                    echo "New Month detected. Preserving Major, resetting Minor."
-                    NEW_VERSION="$CURRENT_YY.$CURRENT_MM.$MAJOR.0"
+                    echo "New year detected. Resetting version."
+                    NEW_VERSION="$CURRENT_YY.0.0.0"
                   else
                     if [ "$BUMP_TYPE" = "major" ]; then
                       MAJOR=$((MAJOR + 1))
                       MINOR=0
+                      PATCH=0
                       SUFFIX=""
                     elif [ "$BUMP_TYPE" = "minor" ]; then
                       MINOR=$((MINOR + 1))
+                      PATCH=0
+                      SUFFIX=""
+                    elif [ "$BUMP_TYPE" = "patch" ]; then
+                      PATCH=$((PATCH + 1))
                       SUFFIX=""
                     elif [ "$BUMP_TYPE" = "hotfix" ]; then
                       if [ -z "$SUFFIX" ]; then
@@ -118,7 +122,7 @@ jobs:
                         SUFFIX="${SUFFIX%?}$NEXT_CHAR"
                       fi
                     fi
-                    NEW_VERSION="$YY.$MM.$MAJOR.$MINOR$SUFFIX"
+                    NEW_VERSION="$YY.$MAJOR.$MINOR.$PATCH$SUFFIX"
                   fi
 
                   echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Calendar-based versioning (`YY.MM.Major.Minor`) with automated version bumping, issue-to-branch automation, and GitHub release management.
+Year-prefixed semver (`YY.Major.Minor.Patch[hotfix]`) with automated version bumping, issue-to-branch automation, and GitHub release management.
 
 ## Workflows
 
@@ -10,34 +10,35 @@ Calendar-based versioning (`YY.MM.Major.Minor`) with automated version bumping, 
 |----------|---------|---------|
 | `version-validation.yml` | PR to `main` or `release` | Validate `VERSION` file format and uniqueness vs latest tag |
 | `version-bump.yml` | PR merged to `main` / direct push with `hotfix:` | Auto-increment version in `VERSION` file |
-| `manual-version-bump.yml` | `workflow_dispatch` | Monthly calendar rollover |
+| `manual-version-bump.yml` | `workflow_dispatch` | Manual bump (major/minor/patch) or year rollover |
 | `release.yml` | PR merged to `release` / push to `release` | Sync VERSION from main, create Git tag + GitHub Release |
 | `issue-branch-handler.yml` | Issue labeled `task`, `feature`, or `bug` | Create branch + draft PR + sub-issue parent tracking |
-| `deploy-docs.yml` | Push to `main` touching `docs/**`, or `workflow_dispatch` | Build `docs/index.html` gallery and deploy to GitHub Pages |
+| `deploy-docs.yml` | Push to `main` touching `docs/visual-explainer/**`, or `workflow_dispatch` | Build gallery index and push to `visual-explainer` branch for GitHub Pages |
 
 ## VERSION File
 
 Located at the repository root. Single source of truth for the version.
 
 ```text
-26.03.0.0
+26.0.0.0
 ```
 
-**Format**: `YY.MM.Major.Minor[suffix]`
+**Format**: `YY.Major.Minor.Patch[hotfix]`
 - YY = two-digit year
-- MM = two-digit month (01–12)
-- Major = feature/task counter (accumulates through the year)
-- Minor = bug fix counter (resets to 0 when Major increments)
-- suffix = hotfix letters (a, b, … z, A …) — rare
+- Major = tasks / large work units (resets Minor, Patch on increment)
+- Minor = features (resets Patch on increment)
+- Patch = bug fixes
+- hotfix = emergency suffix letters (a, b, … z, A …) — rare
 
 ## Branch Strategy
 
 ```
-main          ← protected
-release       ← production releases
-task/{n}-...  ← large work units (branch from main)
-feature/{n}-… ← features (branch from task or main)
-bug/{n}-…     ← bug fixes (branch from feature, task, or main)
+main              ← protected
+release           ← production releases
+visual-explainer  ← GitHub Pages (managed by CI, do not commit to directly)
+task/{n}-...      ← large work units (branch from main)
+feature/{n}-…     ← features (branch from task or main)
+bug/{n}-…         ← bug fixes (branch from feature, task, or main)
 ```
 
 Sub-issues automatically branch from their parent issue's branch via `issue-branch-handler.yml`.
@@ -46,9 +47,12 @@ Sub-issues automatically branch from their parent issue's branch via `issue-bran
 
 | Branch type merged → main | Bump |
 |---------------------------|------|
-| `task/*` or `feature/*` | Major +1, Minor → 0 |
-| `bug/*` or `hotfix/*` | Minor +1 |
+| `task/*` | Major +1, Minor → 0, Patch → 0 |
+| `feature/*` | Minor +1, Patch → 0 |
+| `bug/*` or `hotfix/*` | Patch +1 |
 | Direct push with `hotfix:` in message | Suffix (a, b, … z, A …) |
+
+On year change, the next bump resets to `YY.0.0.0` regardless of bump type.
 
 ## Issue Hierarchy
 
@@ -62,11 +66,11 @@ Task (task label)
 - Add Feature as sub-issue of Task → branch `feature/{n}-...` auto-created from `task/*`
 - Add Bug as sub-issue of Feature → branch `bug/{n}-...` auto-created from `feature/*`
 
-## Monthly Version Rollover
+## Year Rollover
 
-Run **Manual Monthly Version Bump** from Actions → workflow_dispatch:
-- New month (same year): preserves Major, resets Minor
-- New year: resets to `YY.01.0.0`
+Run **Manual Version Bump** from Actions → workflow_dispatch, select `year-rollover`:
+- Resets to `YY.0.0.0` when current year differs from VERSION year
+- No-op if already on current year
 
 ## Release Process
 
@@ -98,6 +102,10 @@ git push origin release
 - Require linear history
 - No force pushes, no deletions
 
+### visual-explainer
+- No branch protection needed — CI writes to it directly
+- Do not commit to this branch manually
+
 ## Labels to Create
 
 Create these labels in the repo for the workflows to trigger correctly:
@@ -113,28 +121,30 @@ Create these labels in the repo for the workflows to trigger correctly:
 
 ## GitHub Pages Deployment
 
-`deploy-docs.yml` publishes the `docs/` directory to GitHub Pages whenever `docs/**` files change on `main`, or when triggered manually via `workflow_dispatch`.
+`deploy-docs.yml` publishes visual explainer output to GitHub Pages via the `visual-explainer` branch whenever `docs/visual-explainer/**` files change on `main`, or when triggered manually.
 
 ### How it works
 
-1. **Build job**: checks out the repo, then runs a Python script that walks `docs/` subdirectories, collects `.html` files, and generates `docs/index.html` — a gallery page grouping files by subdirectory.
-2. **Deploy job**: uploads the `docs/` directory as a Pages artifact and deploys it.
+1. **Build step**: checks out the repo, runs a Python script that walks `docs/visual-explainer/` subdirectories, collects `.html` files, and generates `docs/index.html` — a gallery page grouping files by type (diagrams, slides, reviews, recaps, plans).
+2. **Deploy step**: mirrors the contents of `docs/` to the root of the `visual-explainer` branch using a git worktree, then pushes. The branch root becomes what GitHub Pages serves.
 
 ### Directory conventions
 
-- `docs/.gitkeep` — scaffolds the `docs/` root; delete once real files are added.
-- Subdirectories under `docs/` become gallery sections (e.g., `docs/diagrams/foo.html` appears under the "Diagrams" heading).
-- Only `.html` files in subdirectories are listed; files placed directly in `docs/` root are not enumerated (to avoid index self-referencing).
+- `docs/visual-explainer/diagrams/` — output from `generate-web-diagram --publish`
+- `docs/visual-explainer/slides/` — output from `generate-slides --publish`
+- `docs/visual-explainer/reviews/` — output from `diff-review --publish` and `plan-review --publish`
+- `docs/visual-explainer/recaps/` — output from `project-recap --publish`
+- `docs/visual-explainer/plans/` — output from `generate-visual-plan --publish`
+
+Only `.html` files in subdirectories are listed. Files placed directly in `docs/visual-explainer/` root are not enumerated.
 
 ### Enabling GitHub Pages
 
 1. Go to **Settings → Pages** in the repo.
-2. Set **Source** to **GitHub Actions**.
-3. Push a change to `docs/**` on `main` (or run the workflow manually) to trigger the first deployment.
+2. Set **Source** to **Deploy from a branch**.
+3. Set **Branch** to `visual-explainer`, folder `/` (root).
+4. Push a change to `docs/visual-explainer/**` on `main` (or run the workflow manually) to trigger the first deployment. The `visual-explainer` branch will be created automatically on first deploy.
 
 ### Permissions required
 
-The workflow needs the following repository permissions (already declared in the YAML):
-- `contents: read`
-- `pages: write`
-- `id-token: write`
+The workflow needs `contents: write` (already declared in the YAML) to push to the `visual-explainer` branch.

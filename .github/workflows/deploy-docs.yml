@@ -1,40 +1,38 @@
-name: Deploy Docs to GitHub Pages
+name: Deploy Visual Explainer to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - 'docs/**'
+      - 'docs/visual-explainer/**'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: pages
+  group: visual-explainer-deploy
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build index page
+      - name: Build gallery index
         run: |
-          mkdir -p docs
+          mkdir -p docs/visual-explainer
           python3 - << 'EOF'
           import os
           import re
 
-          docs_dir = "docs"
+          docs_dir = "docs/visual-explainer"
           html_files = []
 
           for root, dirs, files in os.walk(docs_dir):
-              # Skip root docs/ — only recurse into subdirectories
+              # Skip root docs/visual-explainer/ — only recurse into subdirectories
               if root == docs_dir:
                   continue
               for f in files:
@@ -56,23 +54,23 @@ jobs:
                   pass
               return os.path.basename(path).replace(".html", "").replace("-", " ").replace("_", " ").title()
 
-          # Group by subdirectory
+          # Group by subdirectory within visual-explainer/
+          # path = "docs/visual-explainer/diagrams/foo.html"
+          # link = "visual-explainer/diagrams/foo.html" (docs/ stripped — branch root serves from /)
+          # group = "diagrams"
           groups = {}
           for path in html_files:
               parts = path.split("/")
-              # parts[0] = "docs", parts[1] = type subdir, rest = filename
-              if len(parts) >= 3:
-                  group = parts[1]
-              else:
-                  group = "other"
-              groups.setdefault(group, []).append(path)
+              group = parts[2] if len(parts) >= 4 else "other"
+              link = "/".join(parts[1:])  # strip leading "docs/"
+              groups.setdefault(group, []).append((link, path))
 
           sections = ""
-          for group, files in sorted(groups.items()):
+          for group, entries in sorted(groups.items()):
               items = ""
-              for path in files:
+              for link, path in entries:
                   title = extract_title(path)
-                  items += f'      <li><a href="{path}">{title}</a></li>\n'
+                  items += f'      <li><a href="{link}">{title}</a></li>\n'
               sections += f"""
             <section>
               <h2>{group.replace("-", " ").replace("_", " ").title()}</h2>
@@ -112,27 +110,39 @@ jobs:
           lines = page.split("\n")
           output = "\n".join(l[10:] if l.startswith("          ") else l for l in lines)
 
-          with open(os.path.join(docs_dir, "index.html"), "w") as out:
+          with open("docs/index.html", "w") as out:
               out.write(output)
 
           print(f"Generated docs/index.html listing {len(html_files)} files across {len(groups)} groups")
           EOF
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+      - name: Push to visual-explainer branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
+          # Fetch to detect if visual-explainer branch already exists
+          git fetch origin visual-explainer 2>/dev/null || true
 
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          # Set up worktree on the visual-explainer branch (create orphan if first deploy)
+          if git ls-remote --exit-code origin visual-explainer > /dev/null 2>&1; then
+            git worktree add /tmp/ve-deploy visual-explainer
+          else
+            git worktree add --orphan -b visual-explainer /tmp/ve-deploy
+          fi
+
+          # Mirror docs/ contents to the branch root (delete removed files)
+          rm -rf /tmp/ve-deploy/*
+          cp -a docs/. /tmp/ve-deploy/
+
+          cd /tmp/ve-deploy
+          git add --all
+          if git diff --staged --quiet; then
+            echo "No changes to deploy."
+          else
+            git commit -m "deploy: visual explainer gallery [skip ci]"
+            git push origin visual-explainer
+          fi
+
+          cd -
+          git worktree remove /tmp/ve-deploy

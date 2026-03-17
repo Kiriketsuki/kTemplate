@@ -42,53 +42,38 @@ jobs:
                     echo "version=$VERSION" >> $GITHUB_OUTPUT
                     echo "Creating release for version: $VERSION"
 
-                    if [[ $VERSION =~ ^([0-9]{2})\.([0-9]{2})\.([0-9]+)\.([0-9]+)([a-zA-Z]*)$ ]]; then
+                    if [[ $VERSION =~ ^([0-9]{2})\.([0-9]+)\.([0-9]+)\.([0-9]+)([a-zA-Z]*)$ ]]; then
                       YY="${BASH_REMATCH[1]}"
-                      MM="${BASH_REMATCH[2]}"
-                      MAJOR="${BASH_REMATCH[3]}"
-                      MINOR="${BASH_REMATCH[4]}"
+                      MAJOR="${BASH_REMATCH[2]}"
+                      MINOR="${BASH_REMATCH[3]}"
+                      PATCH="${BASH_REMATCH[4]}"
 
-                      case $MM in
-                        01) MONTH_NAME="January" ;;
-                        02) MONTH_NAME="February" ;;
-                        03) MONTH_NAME="March" ;;
-                        04) MONTH_NAME="April" ;;
-                        05) MONTH_NAME="May" ;;
-                        06) MONTH_NAME="June" ;;
-                        07) MONTH_NAME="July" ;;
-                        08) MONTH_NAME="August" ;;
-                        09) MONTH_NAME="September" ;;
-                        10) MONTH_NAME="October" ;;
-                        11) MONTH_NAME="November" ;;
-                        12) MONTH_NAME="December" ;;
-                      esac
-
-                      echo "month_name=$MONTH_NAME" >> $GITHUB_OUTPUT
                       echo "year=20$YY" >> $GITHUB_OUTPUT
-                      echo "feature_count=$MAJOR" >> $GITHUB_OUTPUT
+                      echo "major=$MAJOR" >> $GITHUB_OUTPUT
 
                       git fetch --tags --force 2>/dev/null || true
                       PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-                      FEATURES_ADDED=0
+                      MAJORS_ADDED=0
 
                       if [ -n "$PREV_TAG" ]; then
                         PREV_VERSION=${PREV_TAG#v}
-                        if [[ $PREV_VERSION =~ ^([0-9]{2})\.([0-9]{2})\.([0-9]+)\.([0-9]+)([a-z]*)$ ]]; then
-                          PREV_MAJOR="${BASH_REMATCH[3]}"
+                        if [[ $PREV_VERSION =~ ^([0-9]{2})\.([0-9]+)\.([0-9]+)\.([0-9]+)([a-zA-Z]*)$ ]]; then
+                          PREV_MAJOR="${BASH_REMATCH[2]}"
                           PREV_YY="${BASH_REMATCH[1]}"
                           if [ "$YY" == "$PREV_YY" ]; then
-                            FEATURES_ADDED=$((MAJOR - PREV_MAJOR))
+                            MAJORS_ADDED=$((MAJOR - PREV_MAJOR))
                           else
-                            FEATURES_ADDED=$MAJOR
+                            MAJORS_ADDED=$MAJOR
                           fi
                         fi
                       else
-                        FEATURES_ADDED=$MAJOR
+                        MAJORS_ADDED=$MAJOR
                       fi
 
-                      if [ $FEATURES_ADDED -lt 0 ]; then FEATURES_ADDED=0; fi
-                      echo "features_added=$FEATURES_ADDED" >> $GITHUB_OUTPUT
-                      echo "bugfix_count=$MINOR" >> $GITHUB_OUTPUT
+                      if [ $MAJORS_ADDED -lt 0 ]; then MAJORS_ADDED=0; fi
+                      echo "majors_added=$MAJORS_ADDED" >> $GITHUB_OUTPUT
+                      echo "minor=$MINOR" >> $GITHUB_OUTPUT
+                      echo "patch=$PATCH" >> $GITHUB_OUTPUT
                     fi
                   else
                     echo "No VERSION file found"
@@ -107,16 +92,17 @@ jobs:
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: v${{ steps.get_version.outputs.version }}
-                  name: Release ${{ steps.get_version.outputs.month_name }} ${{ steps.get_version.outputs.year }} (v${{ steps.get_version.outputs.version }})
+                  name: Release v${{ steps.get_version.outputs.version }}
                   body: |
-                      ## Release ${{ steps.get_version.outputs.month_name }} ${{ steps.get_version.outputs.year }}
+                      ## Release v${{ steps.get_version.outputs.version }}
 
-                      **Version**: `${{ steps.get_version.outputs.version }}`
+                      **Year**: ${{ steps.get_version.outputs.year }}
 
                       ### Statistics
-                      - Features merged this year: ${{ steps.get_version.outputs.feature_count }}
-                      - Features added this release: ${{ steps.get_version.outputs.features_added }}
-                      - Bug fixes: ${{ steps.get_version.outputs.bugfix_count }}
+                      - Tasks merged this year: ${{ steps.get_version.outputs.major }}
+                      - Tasks added this release: ${{ steps.get_version.outputs.majors_added }}
+                      - Features (minor): ${{ steps.get_version.outputs.minor }}
+                      - Bug fixes (patch): ${{ steps.get_version.outputs.patch }}
 
                       ### Changes
                       ${{ github.event.pull_request.body }}
