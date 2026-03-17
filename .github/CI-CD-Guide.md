@@ -13,6 +13,7 @@ Calendar-based versioning (`YY.MM.Major.Minor`) with automated version bumping, 
 | `manual-version-bump.yml` | `workflow_dispatch` | Monthly calendar rollover |
 | `release.yml` | PR merged to `release` / push to `release` | Sync VERSION from main, create Git tag + GitHub Release |
 | `issue-branch-handler.yml` | Issue labeled `task`, `feature`, or `bug` | Create branch + draft PR + sub-issue parent tracking |
+| `deploy-docs.yml` | Push to `main` touching `docs/**`, or `workflow_dispatch` | Build `docs/index.html` gallery and deploy to GitHub Pages |
 
 ## VERSION File
 
@@ -109,3 +110,31 @@ Create these labels in the repo for the workflows to trigger correctly:
 | `implementation` | `#e4e669` | Auto-added to task PRs |
 | `addition` | `#0e8a16` | Auto-added to feature PRs |
 | `fix` | `#ee0701` | Auto-added to bug PRs |
+
+## GitHub Pages Deployment
+
+`deploy-docs.yml` publishes the `docs/` directory to GitHub Pages whenever `docs/**` files change on `main`, or when triggered manually via `workflow_dispatch`.
+
+### How it works
+
+1. **Build job**: checks out the repo, then runs a Python script that walks `docs/` subdirectories, collects `.html` files, and generates `docs/index.html` — a gallery page grouping files by subdirectory.
+2. **Deploy job**: uploads the `docs/` directory as a Pages artifact and deploys it.
+
+### Directory conventions
+
+- `docs/.gitkeep` — scaffolds the `docs/` root; delete once real files are added.
+- Subdirectories under `docs/` become gallery sections (e.g., `docs/diagrams/foo.html` appears under the "Diagrams" heading).
+- Only `.html` files in subdirectories are listed; files placed directly in `docs/` root are not enumerated (to avoid index self-referencing).
+
+### Enabling GitHub Pages
+
+1. Go to **Settings → Pages** in the repo.
+2. Set **Source** to **GitHub Actions**.
+3. Push a change to `docs/**` on `main` (or run the workflow manually) to trigger the first deployment.
+
+### Permissions required
+
+The workflow needs the following repository permissions (already declared in the YAML):
+- `contents: read`
+- `pages: write`
+- `id-token: write`
