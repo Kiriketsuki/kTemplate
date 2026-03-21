@@ -4,7 +4,7 @@ on:
     workflow_dispatch:
         inputs:
             bump_type:
-                description: 'Version segment to bump'
+                description: "Bump type"
                 required: true
                 type: choice
                 options:
@@ -12,7 +12,11 @@ on:
                     - major
                     - minor
                     - patch
-                default: year-rollover
+                    - exact
+            exact_version:
+                description: "Exact version (only used when bump_type is 'exact')"
+                required: false
+                type: string
 
 jobs:
     bump-version:
@@ -21,7 +25,7 @@ jobs:
             contents: write
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   fetch-depth: 0
 
@@ -29,7 +33,7 @@ jobs:
               id: current_version
               run: |
                   if [ -f VERSION ]; then
-                    CURRENT_VERSION=$(cat VERSION)
+                    CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
                     echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
                     echo "Current version: $CURRENT_VERSION"
                   else
@@ -43,6 +47,23 @@ jobs:
                   CURRENT="${{ steps.current_version.outputs.current }}"
                   BUMP_TYPE="${{ github.event.inputs.bump_type }}"
 
+                  if [ "$BUMP_TYPE" = "exact" ]; then
+                    EXACT="${{ github.event.inputs.exact_version }}"
+                    if [ -z "$EXACT" ]; then
+                      echo "Error: exact_version is required when bump_type is 'exact'"
+                      exit 1
+                    fi
+                    # Validate format
+                    if ! echo "$EXACT" | grep -qE '^[0-9]{2}\.[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z]*$'; then
+                      echo "Error: Invalid version format: $EXACT"
+                      exit 1
+                    fi
+                    echo "new=$EXACT" >> $GITHUB_OUTPUT
+                    echo "Setting exact version: $EXACT"
+                    exit 0
+                  fi
+
+                  # Parse YY.Major.Minor.Patch[Suffix]
                   if [[ $CURRENT =~ ^([0-9]{2})\.([0-9]+)\.([0-9]+)\.([0-9]+)([a-zA-Z]*)$ ]]; then
                     YY="${BASH_REMATCH[1]}"
                     MAJOR="${BASH_REMATCH[2]}"
@@ -50,52 +71,76 @@ jobs:
                     PATCH="${BASH_REMATCH[4]}"
                   else
                     echo "Error: Invalid version format: $CURRENT"
-                    echo "Expected: YY.Major.Minor.Patch[hotfix] (e.g. 26.1.0.0)"
                     exit 1
                   fi
 
                   CURRENT_YY=$(date +%y)
 
-                  if [ "$BUMP_TYPE" = "year-rollover" ]; then
-                    if [ "$YY" != "$CURRENT_YY" ]; then
-                      NEW_VERSION="$CURRENT_YY.0.0.0"
-                      echo "Year rollover: $YY → $CURRENT_YY. Resetting to $NEW_VERSION"
-                    else
-                      echo "Already on current year ($CURRENT_YY). No rollover needed."
-                      exit 0
-                    fi
-                  elif [ "$BUMP_TYPE" = "major" ]; then
-                    MAJOR=$((MAJOR + 1))
-                    NEW_VERSION="$YY.$MAJOR.0.0"
-                  elif [ "$BUMP_TYPE" = "minor" ]; then
-                    MINOR=$((MINOR + 1))
-                    NEW_VERSION="$YY.$MAJOR.$MINOR.0"
-                  elif [ "$BUMP_TYPE" = "patch" ]; then
-                    PATCH=$((PATCH + 1))
-                    NEW_VERSION="$YY.$MAJOR.$MINOR.$PATCH"
-                  fi
+                  case "$BUMP_TYPE" in
+                    year-rollover)
+                      NEW_VERSION="${CURRENT_YY}.0.0.0"
+                      ;;
+                    major)
+                      MAJOR=$((MAJOR + 1))
+                      MINOR=0
+                      PATCH=0
+                      NEW_VERSION="$YY.$MAJOR.$MINOR.$PATCH"
+                      ;;
+                    minor)
+                      MINOR=$((MINOR + 1))
+                      PATCH=0
+                      NEW_VERSION="$YY.$MAJOR.$MINOR.$PATCH"
+                      ;;
+                    patch)
+                      PATCH=$((PATCH + 1))
+                      NEW_VERSION="$YY.$MAJOR.$MINOR.$PATCH"
+                      ;;
+                  esac
 
                   echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
                   echo "New version: $NEW_VERSION"
 
-            - name: Update VERSION file
-              if: steps.new_version.outputs.new != ''
-              run: |
-                  echo "${{ steps.new_version.outputs.new }}" > VERSION
-
-            - name: Commit version bump
-              if: steps.new_version.outputs.new != ''
+            - name: Update version files
               run: |
                   NEW_VERSION="${{ steps.new_version.outputs.new }}"
-                  BUMP_TYPE="${{ github.event.inputs.bump_type }}"
+
+                  echo "$NEW_VERSION" > VERSION
+                  echo "Updated VERSION to $NEW_VERSION"
+
+                  if [ -f package.json ]; then
+                    sed -i "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" package.json
+                    echo "Updated package.json to $NEW_VERSION"
+                  fi
+
+                  if [ -f README.md ]; then
+                    sed -i "s|version-[0-9a-zA-Z.]*-blue|version-$NEW_VERSION-blue|" README.md
+                    echo "Updated README badge to $NEW_VERSION"
+                  fi
+
+                  find . -maxdepth 4 -name "pyproject.toml" \
+                    -not -path "*/node_modules/*" \
+                    -not -path "*/.pio/*" \
+                    -not -path "*/vendor/*" \
+                    -not -path "*/.venv/*" | while read -r f; do
+                    if grep -q '^version' "$f"; then
+                      sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" "$f"
+                      echo "Updated $f to $NEW_VERSION"
+                    fi
+                  done
+
+            - name: Commit and push
+              run: |
+                  NEW_VERSION="${{ steps.new_version.outputs.new }}"
+
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add VERSION
-                  git commit -m "ci: manual $BUMP_TYPE bump to $NEW_VERSION [skip ci]"
+                  git add -A
+                  git diff --cached --quiet && { echo "No changes to commit"; exit 0; }
+
+                  git commit -m "ci: manual version bump to $NEW_VERSION [skip ci]"
                   git push origin ${{ github.ref_name }}
 
             - name: Summary
-              if: steps.new_version.outputs.new != ''
               run: |
                   echo "## Manual Version Bump Summary" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
