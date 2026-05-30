@@ -66,6 +66,43 @@ Task (task label)
 - Add Feature as sub-issue of Task → branch `feature/{n}-...` auto-created from `task/*`
 - Add Bug as sub-issue of Feature → branch `bug/{n}-...` auto-created from `feature/*`
 
+## Per-Issue Base Branch Override
+
+By default the issue handler picks the base branch from the branch-type
+hierarchy (`epic`/`hotfix`/`bug` → `main`, `feature`/`task` → parent
+issue's branch when sub-issue tracking is set, else `main`).
+
+You can override that on a per-issue basis with a **`Branch off:`** field.
+Each issue template includes the field with `main` prefilled — change it
+to any existing remote branch name to make the auto-created branch and
+draft PR target that branch instead.
+
+```
+Branch off: feature/149-new-trip-flow
+```
+
+This is the simplest way to slot a sub-task into an in-flight feature
+branch without manually resetting the auto-created branch and retargeting
+the PR after the fact.
+
+**Resolution order** (highest precedence first):
+
+1. Explicit `Branch off:` value in the issue body — if the named branch
+   exists on `origin`, it wins. If it does not exist, the handler logs a
+   warning comment on the issue and falls back to step 2.
+2. Sub-issue parent (`tracked-in`) branch — applies to `feature` / `task`.
+3. Branch-type hierarchy default (`main` for epics/hotfixes/bugs, parent
+   or `main` for features/tasks).
+
+The handler accepts both the inline magic-line form (`Branch off: <branch>`
+on its own line in the issue body) and the Issue Forms heading form (the
+`### Branch off` heading followed by the value on the next line).
+Placeholder values (`main`, `master`, `none`, `n/a`, `-`, `_No response_`)
+are treated as "no override".
+
+The auto-created PR is opened with `base: ${BASE_BRANCH}`, so PR
+retargeting is automatic — no extra step required.
+
 ## Year Rollover
 
 Run **Manual Version Bump** from Actions → workflow_dispatch, select `year-rollover`:
