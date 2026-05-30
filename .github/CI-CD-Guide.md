@@ -12,7 +12,7 @@ Year-prefixed semver (`YY.Major.Minor.Patch[hotfix]`) with automated version bum
 | `version-bump.yml` | PR merged to `main` / direct push with `hotfix:` | Auto-increment version in `VERSION` file |
 | `manual-version-bump.yml` | `workflow_dispatch` | Manual bump (major/minor/patch) or year rollover |
 | `release.yml` | PR merged to `release` / push to `release` | Sync VERSION from main, create Git tag + GitHub Release |
-| `issue-branch-handler.yml` | Issue labeled `task`, `feature`, or `bug` | Create branch + draft PR + sub-issue parent tracking |
+| `issue-branch-handler.yml` | Issue labeled `epic`, `feature`, `task`, `bug`, or `hotfix` | Create branch + draft PR + sub-issue parent tracking |
 | `deploy-docs.yml` | Push to `main` touching `docs/visual-explainer/**`, or `workflow_dispatch` | Build gallery index and push to `visual-explainer` branch for GitHub Pages |
 
 ## VERSION File
@@ -23,12 +23,12 @@ Located at the repository root. Single source of truth for the version.
 26.0.0.0
 ```
 
-**Format**: `YY.Major.Minor.Patch[hotfix]`
+**Format**: `YY.Major.Minor.Patch[Suffix]`
 - YY = two-digit year
-- Major = tasks / large work units (resets Minor, Patch on increment)
+- Major = epics / large work units (resets Minor, Patch on increment)
 - Minor = features (resets Patch on increment)
-- Patch = bug fixes
-- hotfix = emergency suffix letters (a, b, … z, A …) — rare
+- Patch = tasks and bug fixes
+- Suffix = emergency hotfix letters (a, b, … z, aa, ab …) — rare
 
 ## Branch Strategy
 
@@ -36,35 +36,51 @@ Located at the repository root. Single source of truth for the version.
 main              ← protected
 release           ← production releases
 visual-explainer  ← GitHub Pages (managed by CI, do not commit to directly)
-task/{n}-...      ← large work units (branch from main)
-feature/{n}-…     ← features (branch from task or main)
-bug/{n}-…         ← bug fixes (branch from feature, task, or main)
+epic/{n}-...      ← large work units (branch from main)
+hotfix/{n}-…      ← emergency fixes (branch from main)
+bug/{n}-…         ← bug fixes (branch from main)
+feature/{n}-…     ← features (branch from parent issue's branch, or main)
+task/{n}-…        ← tasks (branch from parent issue's branch, or main)
 ```
 
-Sub-issues automatically branch from their parent issue's branch via `issue-branch-handler.yml`.
+Base-branch hierarchy:
+- `epic`, `hotfix`, `bug` → `main`
+- `feature`, `task` → parent issue's branch when the issue is a sub-issue, else `main`
+
+Sub-issues automatically branch from their parent issue's branch via `issue-branch-handler.yml`. A per-issue `Branch off:` override can target any existing remote branch (see below).
 
 ## Version Bumping Rules
 
 | Branch type merged → main | Bump |
 |---------------------------|------|
-| `task/*` | Major +1, Minor → 0, Patch → 0 |
+| `epic/*` | Major +1, Minor → 0, Patch → 0 |
 | `feature/*` | Minor +1, Patch → 0 |
-| `bug/*` or `hotfix/*` | Patch +1 |
-| Direct push with `hotfix:` in message | Suffix (a, b, … z, A …) |
+| `task/*` or `bug/*` | Patch +1 |
+| `hotfix/*` or direct push with `hotfix:` in message | Suffix (a, b, … z, aa, ab …) |
 
 On year change, the next bump resets to `YY.0.0.0` regardless of bump type.
 
 ## Issue Hierarchy
 
+Issues are labeled with one of five types: `epic`, `feature`, `task`, `bug`, or `hotfix`.
+The label drives both the branch prefix and the base branch the handler picks.
+
 ```
-Task (task label)
-└── Feature (feature label, sub-issue of Task)
-    └── Bug (bug label, sub-issue of Feature or Task)
+Epic (epic label)
+└── Feature (feature label, sub-issue of Epic)
+    └── Task (task label, sub-issue of Feature)
 ```
 
-- Create a Task → branch `task/{n}-...` auto-created from `main`, draft PR opened
-- Add Feature as sub-issue of Task → branch `feature/{n}-...` auto-created from `task/*`
-- Add Bug as sub-issue of Feature → branch `bug/{n}-...` auto-created from `feature/*`
+Bugs and hotfixes are standalone and always branch from `main`.
+
+- Create an Epic → branch `epic/{n}-...` auto-created from `main`, draft PR opened
+- Add Feature as sub-issue of Epic → branch `feature/{n}-...` auto-created from the epic branch
+- Add Task as sub-issue of Feature → branch `task/{n}-...` auto-created from the feature branch
+- Create a Bug → branch `bug/{n}-...` auto-created from `main`
+- Create a Hotfix → branch `hotfix/{n}-...` auto-created from `main`
+
+`feature` and `task` branch from their parent issue's branch when sub-issue tracking is
+set; otherwise they branch from `main`. `epic`, `bug`, and `hotfix` always branch from `main`.
 
 ## Per-Issue Base Branch Override
 
@@ -149,12 +165,16 @@ Create these labels in the repo for the workflows to trigger correctly:
 
 | Label | Color | Purpose |
 |-------|-------|---------|
-| `task` | `#0075ca` | Top-level work unit |
-| `feature` | `#a2eeef` | Feature within a task |
+| `epic` | `#3e4b9e` | Top-level work unit |
+| `feature` | `#a2eeef` | Feature within an epic |
+| `task` | `#0075ca` | Task within a feature |
 | `bug` | `#d73a4a` | Bug fix |
-| `implementation` | `#e4e669` | Auto-added to task PRs |
+| `hotfix` | `#b60205` | Emergency fix |
+| `epic` (PR) | `#3e4b9e` | Auto-added to epic PRs |
 | `addition` | `#0e8a16` | Auto-added to feature PRs |
+| `implementation` | `#e4e669` | Auto-added to task PRs |
 | `fix` | `#ee0701` | Auto-added to bug PRs |
+| `hotfix` (PR) | `#b60205` | Auto-added to hotfix PRs |
 
 ## GitHub Pages Deployment
 
