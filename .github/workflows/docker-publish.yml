@@ -2,9 +2,11 @@ name: Publish Docker Image
 
 # OPT-IN, inert-by-default publish bridge.
 #
-# This workflow only does anything when the repo actually ships a Dockerfile:
-# the single job is guarded by `if: hashFiles('Dockerfile') != ''`, so in a
-# repo with no Dockerfile the job is skipped and nothing is built or pushed.
+# Builds and pushes to ghcr.io only when the repo actually ships a Dockerfile.
+# A tiny `detect` job checks for the Dockerfile and the `publish-docker` job runs
+# only when it is present (`needs.detect.outputs.present == 'true'`). hashFiles()
+# is deliberately NOT used in a job-level `if` — it needs a runner workspace and
+# is invalid there, which produces an Actions startup failure.
 #
 # Trigger: pushing a release tag (v*). The release workflow creates these tags.
 on:
@@ -17,9 +19,28 @@ permissions:
     packages: write
 
 jobs:
+    detect:
+        runs-on: ubuntu-latest
+        outputs:
+            present: ${{ steps.check.outputs.present }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v6
+
+            - name: Detect Dockerfile
+              id: check
+              run: |
+                  if [ -f Dockerfile ]; then
+                    echo "present=true" >> "$GITHUB_OUTPUT"
+                    echo "Dockerfile found — image publish will run."
+                  else
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                    echo "No Dockerfile at repo root — docker publish is inert here."
+                  fi
+
     publish-docker:
-        # Inert unless a Dockerfile is present at the repo root.
-        if: ${{ hashFiles('Dockerfile') != '' }}
+        needs: detect
+        if: needs.detect.outputs.present == 'true'
         runs-on: ubuntu-latest
         permissions:
             contents: read
