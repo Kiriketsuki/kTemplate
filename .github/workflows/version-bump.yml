@@ -87,7 +87,11 @@ jobs:
                   else
                     case "$BUMP_TYPE" in
                       major)
+                        # Reset MINOR and PATCH on a major bump. Forks: do NOT
+                        # carry these over — 26.3.2.1 must become 26.4.0.0, not 26.4.2.1.
                         MAJOR=$((MAJOR + 1))
+                        MINOR=0
+                        PATCH=0
                         SUFFIX=""
                         NEW_VERSION="$YY.$MAJOR.$MINOR.$PATCH"
                         ;;
