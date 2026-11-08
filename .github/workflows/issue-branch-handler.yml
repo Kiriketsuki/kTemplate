@@ -186,14 +186,17 @@ jobs:
                   PARENT_BRANCH_NAME: ${{ steps.sanitize-parent.outputs.branch-name }}
                   CURRENT_PREFIX: ${{ steps.config.outputs.prefix }}
                   BRANCH_OFF_OVERRIDE: ${{ steps.config.outputs.branch_off_override }}
+                  BRANCH_BASE: ${{ vars.BRANCH_BASE }}
               run: |
                   # Resolution order:
                   # 1. Explicit "Branch off: <branch>" line in issue body (highest priority).
                   #    Falls back to hierarchy/main if the named branch does not exist on origin.
-                  # 2. Hierarchy via tracked-in (sub-issue) parent:
+                  # 2. The BRANCH_BASE repo variable. When it is main, every branch
+                  #    starts from main. A repo that merges each PR into main sets it.
+                  # 3. Hierarchy via tracked-in (sub-issue) parent:
                   #    epic / hotfix / bug -> main
                   #    feature / task -> parent branch if parent issue exists, else main
-                  # 3. Default: main
+                  # 4. Default: main
 
                   git fetch origin --quiet || true
 
@@ -207,6 +210,13 @@ jobs:
                       echo "::warning::Branch off override '$BRANCH_OFF_OVERRIDE' does not exist on origin. Falling back to hierarchy/main."
                       echo "BASE_OVERRIDE_MISSING=$BRANCH_OFF_OVERRIDE" >> $GITHUB_ENV
                     fi
+                  fi
+
+                  if [ "$BRANCH_BASE" == "main" ]; then
+                    echo "BASE_BRANCH=main" >> $GITHUB_ENV
+                    echo "BASE_SOURCE=variable" >> $GITHUB_ENV
+                    echo "The BRANCH_BASE repo variable is main. Every branch starts from main."
+                    exit 0
                   fi
 
                   if [ "$CURRENT_PREFIX" == "epic" ] || [ "$CURRENT_PREFIX" == "hotfix" ]; then
@@ -324,7 +334,7 @@ jobs:
                           title: prTitle,
                           head: branchName,
                           base: baseBranch,
-                          body: `Closes #${context.issue.number}\n\n${context.payload.issue.body || 'No description provided.'}\n\n---\n\nThis pull request was automatically created from issue #${context.issue.number}. Base branch: \`${baseBranch}\`.`,
+                          body: `Closes #${context.issue.number}\n\n${context.payload.issue.body || 'No description provided.'}\n\n---\n\nThe issue branch handler created this pull request from issue #${context.issue.number}. Base branch: \`${baseBranch}\`.`,
                           draft: true
                         });
 
@@ -379,6 +389,7 @@ jobs:
 
                       const sourceLabelMap = {
                         override: 'explicit `Branch off:` override',
+                        variable: '`BRANCH_BASE` repo variable',
                         parent: 'parent issue (sub-issue tracking)',
                         hierarchy: 'branch-type hierarchy rule',
                         fallback: 'fallback (parent branch missing)',

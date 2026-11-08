@@ -79,7 +79,7 @@ Bugs and hotfixes are standalone and always branch from `main`.
 - Bug with `start` → branch `bug/{n}-...` from `main`
 - Hotfix with `start` → branch `hotfix/{n}-...` from `main`
 
-The handler makes no branch when an issue opens. It makes the branch and the draft PR when someone adds the `start` label. An issue can wait for weeks with no branch. Start a parent before its children. If the parent branch does not exist, the handler uses `main` as the base. The two labels can go on in either order. If a script links the parent more than 60 seconds after it creates the issue, add `start` after the link.
+The handler makes no branch when an issue opens. It makes the branch and the draft PR when someone adds the `start` label. An issue can wait for weeks with no branch. Start a parent before its children. If the parent branch does not exist, the handler uses `main` as the base. When `BRANCH_BASE` is `main`, every branch starts from `main` instead. The two labels can go on in either order. If a script links the parent more than 60 seconds after it creates the issue, add `start` after the link.
 
 `feature` and `task` branch from their parent issue's branch when sub-issue tracking is
 set. Otherwise they branch from `main`. `epic`, `bug`, and `hotfix` always branch from `main`.
@@ -119,6 +119,16 @@ as "no override".
 
 The auto-created PR is opened with `base: ${BASE_BRANCH}`, so PR
 retargeting is automatic. You take no extra step.
+
+## Base Branch Variable
+
+The repo variable `BRANCH_BASE` sets where new branches start. Set it to `main` when each PR merges straight into `main`. The handler then bases every branch on `main`. A `Branch off:` override still wins. Leave the variable unset to keep the parent-branch rule.
+
+Set the variable under **Settings → Secrets and variables → Actions → Variables**, or run this command:
+
+```bash
+gh variable set BRANCH_BASE --body main
+```
 
 ## Year Rollover
 
