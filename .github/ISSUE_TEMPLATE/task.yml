@@ -8,6 +8,8 @@ body:
           value: |
               Create a task to track a specific piece of work. Tasks branch from their parent issue's branch (or `main` if standalone) and when merged back will bump the **Patch** version (4th digit: YY.M.m.**X**). The target branch will be rebased before merge to ensure a linear history.
 
+              Add the `start` label when work begins. The handler then makes the branch and the draft PR.
+
               Sub-issues tracked inside a Task will automatically branch from the task branch.
 
     - type: input

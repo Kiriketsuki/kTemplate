@@ -8,6 +8,8 @@ body:
           value: |
               Use a Hotfix for urgent production issues that need an immediate fix. Hotfixes branch from `main` and when merged back to `main` will append an alphabetic **Patch** suffix to the current version (e.g. YY.MM.X.Y**a**, then **b**, ...). The target branch will be rebased before merge to ensure a linear history.
 
+              Add the `start` label when work begins. The handler then makes the branch and the draft PR.
+
     - type: input
       id: branch_off
       attributes:

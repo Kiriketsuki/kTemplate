@@ -8,6 +8,8 @@ body:
           value: |
               Thanks for taking the time to report this bug! Bugs can branch from a Feature, Task, or `main`. When merged to any parent branch, they bump the **Minor** version (4th digit: YY.MM.X.**Y**). The target branch will be rebased before merge to ensure a linear history.
 
+              Add the `start` label when work begins. The handler then makes the branch and the draft PR.
+
               **Hierarchical Workflow**: If this bug is related to a specific Feature or Task, add it as a sub-issue to that issue for automatic parent tracking.
 
     - type: input
