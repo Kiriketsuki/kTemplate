@@ -107,8 +107,9 @@ Then you do not reset the auto-created branch or retarget the PR by hand.
 1. Explicit `Branch off:` value in the issue body. If the named branch
    exists on `origin`, it wins. If it does not exist, the handler logs a
    warning comment on the issue and falls back to step 2.
-2. Sub-issue parent (`tracked-in`) branch. Applies to `feature` and `task`.
-3. Branch-type hierarchy default (`main` for epics/hotfixes/bugs, parent
+2. The `BRANCH_BASE` repo variable. When it is `main`, every branch starts from `main`, and the next steps do not apply.
+3. Sub-issue parent (`tracked-in`) branch. Applies to `feature` and `task`.
+4. Branch-type hierarchy default (`main` for epics/hotfixes/bugs, parent
    or `main` for features/tasks).
 
 The handler accepts two forms. The inline form is `Branch off: <branch>`

@@ -49,6 +49,8 @@ jobs:
               if: github.event.action == 'labeled' && github.event.issue.state == 'open'
               id: config
               uses: actions/github-script@v8
+              env:
+                  BRANCH_BASE: ${{ vars.BRANCH_BASE }}
               with:
                   script: |
                       const labels = context.payload.issue.labels.map(l => l.name);
@@ -134,7 +136,10 @@ jobs:
                       // less than 60 seconds old waits up to 60 seconds for the link.
                       const isChild = prefix === 'feature' || prefix === 'task';
                       const ageMs = Date.now() - Date.parse(context.payload.issue.created_at);
-                      const tries = isChild && ageMs < 60000 ? 7 : 1;
+                      // With BRANCH_BASE set to main, the parent branch is never the
+                      // base, so the handler does not wait for the link.
+                      const baseIsMain = (process.env.BRANCH_BASE || '').trim().toLowerCase() === 'main';
+                      const tries = isChild && ageMs < 60000 && !baseIsMain ? 7 : 1;
                       let parent = null;
 
                       for (let i = 0; i < tries && parent === null; i++) {
@@ -212,7 +217,8 @@ jobs:
                     fi
                   fi
 
-                  if [ "$BRANCH_BASE" == "main" ]; then
+                  BASE_MODE=$(printf '%s' "$BRANCH_BASE" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+                  if [ "$BASE_MODE" == "main" ]; then
                     echo "BASE_BRANCH=main" >> $GITHUB_ENV
                     echo "BASE_SOURCE=variable" >> $GITHUB_ENV
                     echo "The BRANCH_BASE repo variable is main. Every branch starts from main."
