@@ -79,7 +79,7 @@ Bugs and hotfixes are standalone and always branch from `main`.
 - Bug with `start` → branch `bug/{n}-...` from `main`
 - Hotfix with `start` → branch `hotfix/{n}-...` from `main`
 
-The handler makes no branch when an issue opens. It makes the branch and the draft PR when someone adds the `start` label. An issue can wait for weeks with no branch. Start a parent before its children. If the parent branch does not exist, the handler uses `main` as the base.
+The handler makes no branch when an issue opens. It makes the branch and the draft PR when someone adds the `start` label. An issue can wait for weeks with no branch. Start a parent before its children. If the parent branch does not exist, the handler uses `main` as the base. The two labels can go on in either order. If a script links the parent more than 60 seconds after it creates the issue, add `start` after the link.
 
 `feature` and `task` branch from their parent issue's branch when sub-issue tracking is
 set. Otherwise they branch from `main`. `epic`, `bug`, and `hotfix` always branch from `main`.

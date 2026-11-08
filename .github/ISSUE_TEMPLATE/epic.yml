@@ -10,7 +10,7 @@ body:
 
               Add the `start` label when work begins. The handler then makes the branch and the draft PR.
 
-              **Hierarchical Workflow**: Add Tasks and Features as sub-issues of this Epic so their branches automatically slot under the epic branch for coordinated delivery.
+              **Hierarchical Workflow**: Add Tasks and Features as sub-issues of this Epic so their branches slot under the epic branch when you start them after this Epic for coordinated delivery.
 
     - type: input
       id: branch_off

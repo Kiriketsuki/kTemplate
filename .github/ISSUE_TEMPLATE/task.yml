@@ -10,7 +10,7 @@ body:
 
               Add the `start` label when work begins. The handler then makes the branch and the draft PR.
 
-              Sub-issues tracked inside a Task will automatically branch from the task branch.
+              Sub-issues tracked inside a Task branch from the task branch when you start them after this Task.
 
     - type: input
       id: branch_off

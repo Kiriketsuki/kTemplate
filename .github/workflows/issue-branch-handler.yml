@@ -10,11 +10,23 @@ on:
     issues:
         types: [labeled, closed]
 
+# One run at a time for each issue. An issue created with a type label
+# and start sends two labeled events, and both can pass the job gate.
+concurrency:
+    group: issue-branch-${{ github.event.issue.number }}
+    cancel-in-progress: false
+
 jobs:
     handle-issue-branch:
+        # A labeled event runs the job when the added label is start, or when
+        # it is a type label and the issue already has start. So the order of
+        # the two labels does not matter.
         if: >-
             (github.event.action == 'closed' ||
-             (github.event.action == 'labeled' && github.event.label.name == 'start')) &&
+             (github.event.action == 'labeled' && github.event.issue.state == 'open' &&
+              (github.event.label.name == 'start' ||
+               (contains(github.event.issue.labels.*.name, 'start') &&
+                contains(fromJSON('["epic","feature","task","bug","hotfix"]'), github.event.label.name))))) &&
             (contains(github.event.issue.labels.*.name, 'epic') ||
              contains(github.event.issue.labels.*.name, 'feature') ||
              contains(github.event.issue.labels.*.name, 'task') ||
