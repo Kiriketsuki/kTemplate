@@ -8,6 +8,8 @@ body:
           value: |
               Thanks for taking the time to suggest a new feature! Features can branch from an Epic or from `main`. When merged, they bump the **Minor** version (3rd digit: YY.M.**X**.0, resetting Patch to 0). The target branch will be rebased before merge to ensure a linear history.
 
+              Add the `start` label when work begins. The handler then makes the branch and the draft PR.
+
               **Hierarchical Workflow**: If this feature belongs to a specific Epic, add it as a sub-issue to that Epic issue for automatic parent tracking.
 
     - type: input

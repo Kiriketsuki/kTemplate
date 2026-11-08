@@ -8,7 +8,9 @@ body:
           value: |
               Create an Epic to group a large body of work spanning multiple Tasks and Features. Epics branch from `main` and when merged back to `main` will bump the **Major** version (resetting Minor and Patch to 0: YY.**X**.0.0). The target branch will be rebased before merge to ensure a linear history.
 
-              **Hierarchical Workflow**: Add Tasks and Features as sub-issues of this Epic so their branches automatically slot under the epic branch for coordinated delivery.
+              Add the `start` label when work begins. The handler then makes the branch and the draft PR.
+
+              **Hierarchical Workflow**: Add Tasks and Features as sub-issues of this Epic so their branches slot under the epic branch when you start them after this Epic for coordinated delivery.
 
     - type: input
       id: branch_off

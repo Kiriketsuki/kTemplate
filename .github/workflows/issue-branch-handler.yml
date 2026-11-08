@@ -1,17 +1,37 @@
 name: Issue Branch Handler
 
+# Makes the branch and the draft PR for an issue when someone adds the
+# start label. A new issue gets no branch, so it can wait with no branch
+# until work begins. The issue also needs one type label: epic, feature,
+# task, bug or hotfix. The close handler runs for any closed issue with a
+# type label.
+
 on:
     issues:
-        types: [opened, labeled, closed]
+        types: [labeled, closed]
+
+# One run at a time for each issue. An issue created with a type label
+# and start sends two labeled events, and both can pass the job gate.
+concurrency:
+    group: issue-branch-${{ github.event.issue.number }}
+    cancel-in-progress: false
 
 jobs:
     handle-issue-branch:
+        # A labeled event runs the job when the added label is start, or when
+        # it is a type label and the issue already has start. So the order of
+        # the two labels does not matter.
         if: >-
-            contains(github.event.issue.labels.*.name, 'epic') ||
-            contains(github.event.issue.labels.*.name, 'feature') ||
-            contains(github.event.issue.labels.*.name, 'task') ||
-            contains(github.event.issue.labels.*.name, 'bug') ||
-            contains(github.event.issue.labels.*.name, 'hotfix')
+            (github.event.action == 'closed' ||
+             (github.event.action == 'labeled' && github.event.issue.state == 'open' &&
+              (github.event.label.name == 'start' ||
+               (contains(github.event.issue.labels.*.name, 'start') &&
+                contains(fromJSON('["epic","feature","task","bug","hotfix"]'), github.event.label.name))))) &&
+            (contains(github.event.issue.labels.*.name, 'epic') ||
+             contains(github.event.issue.labels.*.name, 'feature') ||
+             contains(github.event.issue.labels.*.name, 'task') ||
+             contains(github.event.issue.labels.*.name, 'bug') ||
+             contains(github.event.issue.labels.*.name, 'hotfix'))
         runs-on: ubuntu-latest
         permissions:
             issues: write
@@ -20,13 +40,13 @@ jobs:
 
         steps:
             - name: Checkout repository
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open'
               uses: actions/checkout@v6
               with:
                   fetch-depth: 0
 
             - name: Determine branch configuration
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open'
               id: config
               uses: actions/github-script@v8
               with:
@@ -109,10 +129,12 @@ jobs:
                         }
                       `;
 
-                      // The workflow starts on "opened", often before the sub-issue
-                      // link exists. A feature or task waits up to 60 seconds for it.
+                      // An issue created with the start label starts the workflow
+                      // before the sub-issue link exists. A feature or task that is
+                      // less than 60 seconds old waits up to 60 seconds for the link.
                       const isChild = prefix === 'feature' || prefix === 'task';
-                      const tries = isChild && context.payload.action === 'opened' ? 7 : 1;
+                      const ageMs = Date.now() - Date.parse(context.payload.issue.created_at);
+                      const tries = isChild && ageMs < 60000 ? 7 : 1;
                       let parent = null;
 
                       for (let i = 0; i < tries && parent === null; i++) {
@@ -148,7 +170,7 @@ jobs:
                       }
 
             - name: Sanitize parent branch name
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open' && steps.config.outputs.parent_exists == 'true'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open' && steps.config.outputs.parent_exists == 'true'
               id: sanitize-parent
               uses: ./.github/actions/sanitize-branch-name
               with:
@@ -157,7 +179,7 @@ jobs:
                   prefix: ${{ steps.config.outputs.parent_prefix }}
 
             - name: Calculate base branch
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open'
               id: base-branch
               env:
                   PARENT_EXISTS: ${{ steps.config.outputs.parent_exists }}
@@ -215,7 +237,7 @@ jobs:
                   fi
 
             - name: Sanitize branch name
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open'
               id: sanitize
               uses: ./.github/actions/sanitize-branch-name
               with:
@@ -224,7 +246,7 @@ jobs:
                   prefix: ${{ steps.config.outputs.prefix }}
 
             - name: Create branch
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open'
               id: create-branch
               run: |
                   BRANCH_NAME="${{ steps.sanitize.outputs.branch-name }}"
@@ -266,7 +288,7 @@ jobs:
                   echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
             - name: Create pull request
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open' && env.BRANCH_EXISTS == 'false'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open' && env.BRANCH_EXISTS == 'false'
               id: create-pr
               uses: actions/github-script@v8
               with:
@@ -315,7 +337,7 @@ jobs:
                       }
 
             - name: Add PR label
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open' && steps.create-pr.outputs.pr_number
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open' && steps.create-pr.outputs.pr_number
               uses: actions/github-script@v8
               with:
                   script: |
@@ -337,7 +359,7 @@ jobs:
                       }
 
             - name: Comment on issue
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open' && steps.create-pr.outputs.pr_number
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open' && steps.create-pr.outputs.pr_number
               uses: actions/github-script@v8
               env:
                   BRANCH_NAME: ${{ env.BRANCH_NAME }}
@@ -377,7 +399,7 @@ jobs:
                       });
 
             - name: Assign issue
-              if: (github.event.action == 'opened' || github.event.action == 'labeled') && github.event.issue.state == 'open'
+              if: github.event.action == 'labeled' && github.event.issue.state == 'open'
               uses: actions/github-script@v8
               with:
                   script: |
